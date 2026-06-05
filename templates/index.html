@@ -1,0 +1,1032 @@
+{% extends "base.html" %}
+
+{% block title %}Wordcraft — Daily Word Puzzle | Guess Today's 5-Letter Word{% endblock %}
+{% block description %}Play Wordcraft, your free daily 5-letter word puzzle. Guess the hidden word in 6 tries. New word every day — no account, no ads clutter, just pure word fun.{% endblock %}
+{% block keywords %}wordcraft, wordle, daily word puzzle, 5 letter word game, free word game, brain teaser{% endblock %}
+{% block canonical %}/{% endblock %}
+
+{% block og_title %}Wordcraft — Can you guess today's word?{% endblock %}
+{% block og_description %}A beautifully crafted daily 5-letter word puzzle. 6 tries. New word every day.{% endblock %}
+
+{% block nav_home %}active{% endblock %}
+
+{% block breadcrumb_json %}[{"@type":"ListItem","position":1,"name":"Home","item":"/"}]{% endblock %}
+
+{% block breadcrumb %}
+<li><a href="/" aria-current="page">Home</a></li>
+{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Game",
+  "name": "Wordcraft",
+  "description": "A free daily 5-letter word puzzle game. Guess the word in 6 tries.",
+  "url": "/",
+  "genre": "Word Game",
+  "playMode": "SinglePlayer"
+}
+</script>
+<style>
+/* ── PAGE LAYOUT ── */
+.game-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  padding-top: 0.5rem;
+}
+
+/* ── HEADER ── */
+.game-header {
+  text-align: center;
+  width: 100%;
+  max-width: 500px;
+}
+
+.game-title {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.8rem, 5vw, 2.6rem);
+  letter-spacing: -1px;
+  color: var(--gold);
+  line-height: 1;
+  margin-bottom: 0.25rem;
+}
+
+.game-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-dim);
+  letter-spacing: 0.03em;
+}
+
+.day-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 14px;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-top: 0.6rem;
+  letter-spacing: 0.04em;
+}
+
+/* ── TOASTER ── */
+#toast {
+  position: fixed;
+  top: calc(var(--nav-h) + 1rem);
+  left: 50%;
+  transform: translateX(-50%) translateY(-12px);
+  background: var(--text);
+  color: var(--bg);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 10px 22px;
+  border-radius: 30px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 200;
+  white-space: nowrap;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── GRID ── */
+#board {
+  display: grid;
+  grid-template-rows: repeat(6, 1fr);
+  gap: 6px;
+  width: min(350px, 90vw);
+  aspect-ratio: 5/6;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.tile {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: clamp(1.4rem, 4vw, 1.9rem);
+  border: 2px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg2);
+  color: var(--text);
+  cursor: default;
+  user-select: none;
+  transition: border-color 0.1s;
+  position: relative;
+  overflow: hidden;
+}
+
+/* pop-in when typing */
+@keyframes pop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.12); }
+  100% { transform: scale(1); }
+}
+
+.tile.pop { animation: pop 0.1s ease; }
+
+/* filled tile border */
+.tile.filled { border-color: var(--muted); }
+
+/* flip animation */
+@keyframes flipIn {
+  0%   { transform: rotateX(0deg); }
+  50%  { transform: rotateX(-90deg); }
+  100% { transform: rotateX(-90deg); }
+}
+
+@keyframes flipOut {
+  0%   { transform: rotateX(-90deg); }
+  50%  { transform: rotateX(0deg); }
+  100% { transform: rotateX(0deg); }
+}
+
+.tile.flip-in  { animation: flipIn  0.25s ease forwards; }
+.tile.flip-out { animation: flipOut 0.25s ease forwards; }
+
+/* tile states after reveal */
+.tile.correct {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+.tile.present {
+  background: var(--amber);
+  border-color: var(--amber);
+  color: #fff;
+}
+
+.tile.absent {
+  background: var(--bg3);
+  border-color: var(--bg3);
+  color: var(--muted);
+}
+
+/* shake on invalid word */
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%      { transform: translateX(-6px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(4px); }
+}
+
+.row.shake { animation: shake 0.4s ease; }
+
+/* bounce on win */
+@keyframes bounce {
+  0%,100% { transform: translateY(0); }
+  40%     { transform: translateY(-20px); }
+  70%     { transform: translateY(-8px); }
+}
+
+.tile.bounce { animation: bounce 0.6s ease forwards; }
+
+/* ── KEYBOARD ── */
+#keyboard {
+  width: min(500px, 96vw);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kb-row {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+}
+
+.key {
+  height: 56px;
+  min-width: 36px;
+  flex: 1;
+  max-width: 46px;
+  border: none;
+  border-radius: 5px;
+  background: var(--bg3);
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, transform 0.08s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.key:active { transform: scale(0.94); }
+
+.key.wide {
+  min-width: 60px;
+  max-width: 66px;
+  font-size: 0.75rem;
+}
+
+.key.correct { background: var(--green);  color: #fff; }
+.key.present { background: var(--amber);  color: #fff; }
+.key.absent  { background: #2a2520;       color: var(--muted); }
+
+/* ── STATUS PANEL ── */
+#status-panel {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+  padding: 1.5rem;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  width: min(400px, 92vw);
+}
+
+#status-panel.show { display: flex; }
+
+.status-emoji { font-size: 2.5rem; line-height: 1; }
+
+.status-word {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 1.4rem;
+  letter-spacing: 2px;
+  color: var(--gold);
+}
+
+.status-label {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.next-word-timer {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 1.5rem;
+  color: var(--text);
+  letter-spacing: 2px;
+}
+
+.btn-share {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--gold);
+  color: var(--bg);
+  border: none;
+  border-radius: 8px;
+  padding: 12px 28px;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.btn-share:hover  { background: #fdb726; }
+.btn-share:active { transform: scale(0.97); }
+
+/* ── STATS BAR ── */
+#stats-row {
+  display: flex;
+  gap: 1.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-num {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 1.6rem;
+  color: var(--text);
+  line-height: 1;
+}
+
+.stat-lbl {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* ── INSTRUCTIONS ── */
+details.how-to-play {
+  width: min(500px, 92vw);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+details.how-to-play summary {
+  padding: 0.9rem 1.25rem;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  transition: color 0.15s;
+}
+
+details.how-to-play summary:hover { color: var(--text); }
+details.how-to-play summary::after { content: '›'; margin-left: auto; transition: transform 0.2s; }
+details[open].how-to-play summary::after { transform: rotate(90deg); }
+
+.how-body {
+  padding: 0 1.25rem 1.25rem;
+  font-size: 0.875rem;
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+
+.example-tiles {
+  display: flex;
+  gap: 5px;
+  margin: 0.75rem 0 0.4rem;
+}
+
+.ex-tile {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 1rem;
+  border-radius: 4px;
+  border: 2px solid var(--border);
+}
+
+.ex-tile.c { background: var(--green);  border-color: var(--green);  color: #fff; }
+.ex-tile.p { background: var(--amber);  border-color: var(--amber);  color: #fff; }
+.ex-tile.a { background: var(--bg3);    border-color: var(--bg3);    color: var(--muted); }
+
+/* ── CANVAS CONFETTI ── */
+#confetti-canvas {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 500;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="game-wrapper">
+
+  <!-- HEADER -->
+  <header class="game-header">
+    <h1 class="game-title">⬛🟨🟩 Wordcraft</h1>
+    <p class="game-subtitle">Guess the 5-letter word in 6 tries</p>
+    <div class="day-badge">
+      📅 Puzzle <span id="puzzle-num">#1</span> &nbsp;·&nbsp; <span id="puzzle-date"></span>
+    </div>
+  </header>
+
+  <!-- TOAST -->
+  <div id="toast" role="alert" aria-live="polite"></div>
+
+  <!-- STATS -->
+  <div id="stats-row" aria-label="Your statistics">
+    <div class="stat-item"><div class="stat-num" id="s-played">0</div><div class="stat-lbl">Played</div></div>
+    <div class="stat-item"><div class="stat-num" id="s-win">0</div><div class="stat-lbl">Win %</div></div>
+    <div class="stat-item"><div class="stat-num" id="s-streak">0</div><div class="stat-lbl">Streak 🔥</div></div>
+    <div class="stat-item"><div class="stat-num" id="s-best">0</div><div class="stat-lbl">Best</div></div>
+  </div>
+
+  <!-- GAME BOARD -->
+  <section id="board" aria-label="Game board" role="grid"></section>
+
+  <!-- KEYBOARD -->
+  <section id="keyboard" aria-label="On-screen keyboard">
+    <div class="kb-row">
+      <button class="key" data-key="Q">Q</button><button class="key" data-key="W">W</button>
+      <button class="key" data-key="E">E</button><button class="key" data-key="R">R</button>
+      <button class="key" data-key="T">T</button><button class="key" data-key="Y">Y</button>
+      <button class="key" data-key="U">U</button><button class="key" data-key="I">I</button>
+      <button class="key" data-key="O">O</button><button class="key" data-key="P">P</button>
+    </div>
+    <div class="kb-row">
+      <button class="key" data-key="A">A</button><button class="key" data-key="S">S</button>
+      <button class="key" data-key="D">D</button><button class="key" data-key="F">F</button>
+      <button class="key" data-key="G">G</button><button class="key" data-key="H">H</button>
+      <button class="key" data-key="J">J</button><button class="key" data-key="K">K</button>
+      <button class="key" data-key="L">L</button>
+    </div>
+    <div class="kb-row">
+      <button class="key wide" data-key="ENTER">Enter</button>
+      <button class="key" data-key="Z">Z</button><button class="key" data-key="X">X</button>
+      <button class="key" data-key="C">C</button><button class="key" data-key="V">V</button>
+      <button class="key" data-key="B">B</button><button class="key" data-key="N">N</button>
+      <button class="key" data-key="M">M</button>
+      <button class="key wide" data-key="BACKSPACE">⌫</button>
+    </div>
+  </section>
+
+  <!-- STATUS PANEL (shown after win/loss) -->
+  <div id="status-panel" role="region" aria-label="Game result" aria-live="polite">
+    <div class="status-emoji" id="status-emoji">🎉</div>
+    <div>
+      <div class="status-label">The word was</div>
+      <div class="status-word" id="status-word"></div>
+    </div>
+    <div>
+      <div class="status-label">Next word in</div>
+      <div class="next-word-timer" id="next-timer">--:--:--</div>
+    </div>
+    <button class="btn-share" id="btn-share" aria-label="Share your result">
+      📤 Share Result
+    </button>
+  </div>
+
+  <!-- HOW TO PLAY -->
+  <details class="how-to-play">
+    <summary>❓ How to play</summary>
+    <div class="how-body">
+      <p>Guess the <strong>Wordcraft</strong> of the day in <strong>6 tries</strong>.</p>
+      <ul style="margin:.6rem 0 .6rem 1.2rem;">
+        <li>Each guess must be a valid 5-letter word.</li>
+        <li>After each guess, tiles change colour to show how close you were.</li>
+      </ul>
+      <div class="example-tiles">
+        <div class="ex-tile c">W</div><div class="ex-tile">E</div><div class="ex-tile">A</div><div class="ex-tile">R</div><div class="ex-tile">Y</div>
+      </div>
+      <p><strong style="color:var(--green-lit);">W</strong> is in the word and in the correct spot.</p>
+      <div class="example-tiles">
+        <div class="ex-tile">P</div><div class="ex-tile p">I</div><div class="ex-tile">L</div><div class="ex-tile">L</div><div class="ex-tile">S</div>
+      </div>
+      <p><strong style="color:var(--amber);">I</strong> is in the word but in the wrong spot.</p>
+      <div class="example-tiles">
+        <div class="ex-tile">V</div><div class="ex-tile">A</div><div class="ex-tile">G</div><div class="ex-tile a">U</div><div class="ex-tile">E</div>
+      </div>
+      <p><strong style="color:var(--muted);">U</strong> is not in the word in any spot.</p>
+    </div>
+  </details>
+
+</div><!-- /.game-wrapper -->
+
+<!-- Confetti canvas -->
+<canvas id="confetti-canvas" aria-hidden="true"></canvas>
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ════════════════════════════════════════
+   WORD LIST — 365 curated 5-letter words
+   ════════════════════════════════════════ */
+const WORDS = [
+  'ABOUT','ABOVE','ABUSE','ACTOR','ACUTE','ADMIT','ADOPT','ADULT','AFTER','AGAIN',
+  'AGENT','AGREE','AHEAD','ALARM','ALBUM','ALERT','ALIKE','ALIGN','ALIVE','ALLEY',
+  'ALLOW','ALONE','ALONG','ALTAR','ALTER','ANGEL','ANGER','ANGLE','ANGRY','ANIME',
+  'ANNEX','ANTIC','ANVIL','APART','APPLE','APPLY','ARENA','ARGUE','ARISE','ARMED',
+  'ARROW','ATLAS','ATTIC','AUDIO','AUDIT','AVOID','AWAKE','AWARD','AWARE','AWFUL',
+  'BASIC','BASIN','BATCH','BEACH','BEARD','BEAST','BEGAN','BEGIN','BEING','BELOW',
+  'BENCH','BIRTH','BLADE','BLAME','BLAND','BLANK','BLAST','BLAZE','BLEAK','BLEND',
+  'BLESS','BLIND','BLOCK','BLOOD','BLOOM','BLOWN','BLUES','BLUNT','BLURT','BOARD',
+  'BONUS','BOOST','BOOTH','BORED','BOUND','BRAIN','BRAND','BRAVE','BREAD','BREAK',
+  'BREED','BRIDE','BRIEF','BRING','BRISK','BROAD','BROKE','BROOD','BROOK','BROWN',
+  'BRUSH','BUILD','BUILT','BURST','BUYER','BYLAW','CABIN','CABLE','CAMEL','CANDY',
+  'CARGO','CARRY','CAUSE','CEASE','CHAIN','CHAIR','CHAOS','CHARM','CHART','CHASE',
+  'CHEAP','CHEAT','CHECK','CHEEK','CHESS','CHEST','CHIEF','CHILD','CHINA','CHOIR',
+  'CIVIC','CIVIL','CLAIM','CLASH','CLASS','CLEAN','CLEAR','CLERK','CLICK','CLIFF',
+  'CLIMB','CLING','CLOCK','CLONE','CLOSE','CLOTH','CLOUD','CLOWN','CLUB','COACH',
+  'COAST','COLOR','COMET','COMIC','CORAL','COULD','COUCH','COUNT','COVER','CRACK',
+  'CRAFT','CRANE','CRASH','CRAZY','CREAM','CREEK','CRIME','CRISP','CROSS','CROWD',
+  'CROWN','CRUEL','CRUSH','CRUST','CUBIC','CURVE','CYCLE','DAILY','DANCE','DANDY',
+  'DEALT','DEATH','DEBUG','DEBUT','DECAY','DELTA','DENSE','DEPOT','DEPTH','DIZZY',
+  'DODGE','DOING','DOUBT','DOUGH','DOWEL','DRAFT','DRAIN','DRAMA','DRANK','DRAWL',
+  'DREAM','DRESS','DRIFT','DRILL','DRINK','DRIVE','DRONE','DROOP','DROVE','DROWN',
+  'DUSKY','DUSTY','DWARF','DWELT','EAGER','EARLY','EARTH','EIGHT','ELECT','ELITE',
+  'EMAIL','EMBER','EMPTY','ENACT','ENDED','ENEMY','ENJOY','ENTER','EQUAL','ESSAY',
+  'EVENT','EVERY','EXACT','EXIST','EXTRA','FABLE','FACED','FAITH','FALSE','FANCY',
+  'FEAST','FENCE','FERRY','FETCH','FEVER','FIBER','FIELD','FIERY','FIFTH','FIFTY',
+  'FIGHT','FINAL','FIRST','FIXED','FLAME','FLANK','FLASH','FLASK','FLEET','FLESH',
+  'FLOAT','FLOOD','FLOOR','FLOUR','FLUID','FLUSH','FOCUS','FORCE','FORGE','FORTH',
+  'FORUM','FOUND','FRAME','FRAUD','FRESH','FRONT','FROST','FROZE','FRUIT','FULLY',
+  'FUNKY','FUNNY','GIANT','GIVEN','GLAND','GLASS','GLOBE','GLOOM','GLORY','GLOSS',
+  'GLOVE','GOING','GRACE','GRADE','GRAIN','GRAND','GRANT','GRASP','GRASS','GREET',
+  'GRILL','GRIND','GROAN','GROSS','GROUP','GROVE','GRUEL','GUARD','GUESS','GUEST',
+  'GUIDE','GUILD','GUISE','GUSTO','HAUNT','HAVEN','HEART','HEAVY','HENCE','HERBS',
+  'HINGE','HOARD','HONOR','HORSE','HOTEL','HOUSE','HUMAN','HUMOR','HURRY','IDEAL',
+  'IMAGE','IMPLY','INBOX','INDEX','INFER','INPUT','INTER','ISSUE','JEWEL','JOINT',
+  'JUICE','JUICY','JUMBO','KAYAK','KNOCK','KNOWN','LABEL','LARGE','LASER','LATER',
+  'LAUGH','LAYER','LEAPT','LEARN','LEASE','LEAST','LEAVE','LEGAL','LEVEL','LIGHT',
+  'LINEN','LIVER','LOCAL','LODGE','LOGIC','LOOSE','LORRY','LOTUS','LOYAL','LUCKY',
+  'LUNCH','LYING','MAGIC','MAJOR','MAKER','MANOR','MAPLE','MARCH','MARSH','MATCH'
+];
+
+/* ════════════════════════════
+   VALID GUESSES — large set
+   (uses WORDS + common words)
+   ════════════════════════════ */
+const VALID_EXTRA = [
+  'AAHED','AALII','ABACI','ABACK','ABAFT','ABASE','ABASH','ABATE','ABBEY','ABBOT',
+  'ABHOR','ABIDE','ABLER','ABODE','ABORT','ABUZZ','ABYSS','ACHED','ACHES','ACIDS',
+  'ACING','ACORN','ACRES','ACRID','ACTED','ADDED','ADDER','ADEPT','ADIEU','ADMAN',
+  'ADOBE','AEGIS','AEONS','AFOOT','AGAPE','AGAVE','AGLOW','AGONY','AGORA','AGUED',
+  'AIDES','AIMED','AIMER','AIRED','AIRER','AITCH','ALGAE','ALIAS','ALIBI','ALLOT',
+  'ALOFT','ALOOF','ALOUD','ALTHO','AMASS','AMAZE','AMBLE','AMEND','AMISS','AMUSE',
+  'ANNOY','AORTA','APART','APHID','ARCED','ARDOR','AROMA','ARTSY','ASHEN','ASHES',
+  'ASKED','ASSET','ASSAY','ASTIR','ATONE','ATOPY','ATTAR','ATTIC','AUGUR','AUGER',
+  'AXIOM','AXION','AXLES','BAYOU','BIRCH','BISON','BITTY','BLISS','BLOKE','BLURB',
+  'BODED','BOLTS','BOOBY','BOTCH','BOXER','BRACE','BRAVO','BRAWN','BRAYS','BRAZE',
+  'BROIL','BUDGE','BUGGY','BULGE','BULKY','BULLY','BUMPY','BUNNY','BURLY','BUSHY',
+  'BUTCH','CATTY','CABAL','CAMEO','CASTE','CATTY','CHAFE','CHAMP','CRIMP','CRISP',
+  'CANNY','CANOE','CAVIL','CHOMP','CINCH','CITED','CIVIL','CLEFT','CREST','CROUP',
+  'CRYPT','CURLY','CUSHY','DADDY','DALLY','DAFFY','DAMPY','DATED','DAUNT','DEPOT',
+  'DERBY','DITTY','DIVVY','DIZZY','DODGY','DOWDY','DRAPE','DRIER','EVERY','ENVOY',
+  'EPOCH','ERODE','ERRANT','ETHIC','EVADE','EVOLVE','EXILE','EXPEL','FACET','FAIRY',
+  'FANGS','FARCE','FARCE','FATED','FAULTY','GASSY','GAUDY','GAUZE','GAVEL','GAUZY',
+  'GHOUL','GIDDY','GIMPY','GIRLY','GRUFF','GRUMP','GUAVA','GULCH','GUMMY','GUTSY',
+  'HAIRY','HANDY','HARDY','HARPY','HASTY','HATCH','HUSKY','IVORY','JAZZY','JELLY',
+  'JERKY','JOLLY','JUMPY','LANKY','LEAFY','LEGGY','LOFTY','LOUSY','LUMPY','LUSTY',
+  'MANLY','MESSY','MILKY','MISTY','MOODY','MUCKY','MUDDY','MUGGY','MURKY','MUSHY',
+  'MUSTY','NASTY','NATTY','NERDY','NERVY','NIPPY','NOISY','NUTTY','PALSY','PANTY',
+  'PARTY','PATSY','PICKY','PITHY','PLUMP','PLUNK','PLUSH','POKEY','PRIVY','PUDGY',
+  'PUFFY','PUSHY','RATTY','ROWDY','RUDDY','RUSTY','SASSY','SAVVY','SCALY','SCARY',
+  'SEEDY','SHADY','SHAKY','SILKY','SILLY','SKIMPY','SLICK','SLIMY','SLOPY','SLUGS',
+  'SNAKY','SNAPPY','SNOWY','SOGGY','SPIKY','SPINY','STARK','STERN','STIFF','STONY',
+  'STORY','STOUT','STRAW','STRUT','STUDY','STUDS','STUMP','STUNK','SHOWY','SPICY',
+  'SPOOKY','TACKY','TARDY','TASTY','TESTY','THICK','TIPSY','TOTAL','TOUCHY','TOXIC',
+  'WACKY','WAFFY','WEARY','WIMPY','WITTY','WOOLY','WORDY','WORN','YUCKY','ZAPPY',
+  'ZIPPY','ZONAL','ZONED','ZONES','ZONKS'
+];
+
+const ALL_VALID = new Set([...WORDS, ...VALID_EXTRA]);
+
+/* ═══════════════════
+   DAILY WORD ENGINE
+   ═══════════════════ */
+const EPOCH = new Date('2024-01-01T00:00:00Z');
+function getDayIndex() {
+  const now = new Date();
+  const utcNow = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const utcEpoch = Date.UTC(2024, 0, 1);
+  return Math.floor((utcNow - utcEpoch) / 86400000);
+}
+const DAY_INDEX = getDayIndex();
+const TARGET = WORDS[DAY_INDEX % WORDS.length];
+
+// Puzzle number + date display
+document.getElementById('puzzle-num').textContent = '#' + (DAY_INDEX + 1);
+document.getElementById('puzzle-date').textContent = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+/* ═══════════════════
+   WEB AUDIO ENGINE
+   ═══════════════════ */
+let audioCtx = null;
+function getCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playTone(freq, type, duration, vol = 0.25) {
+  if (!window.SOUND_ON) return;
+  try {
+    const ctx = getCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(vol, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+    osc.start(); osc.stop(ctx.currentTime + duration);
+  } catch(e) {}
+}
+
+const SFX = {
+  type:    () => playTone(320, 'sine',     0.06, 0.18),
+  delete:  () => playTone(220, 'sine',     0.06, 0.12),
+  invalid: () => { playTone(160, 'sawtooth', 0.15, 0.15); },
+  correct: () => { [523,659,784,1047].forEach((f,i) => setTimeout(() => playTone(f,'sine',0.25,0.22), i*90)); },
+  present: () => playTone(440, 'triangle', 0.2,  0.2),
+  absent:  () => playTone(200, 'sine',     0.12, 0.12),
+  win:     () => { [523,587,659,698,784,880,988,1047].forEach((f,i) => setTimeout(() => playTone(f,'sine',0.35,0.2), i*80)); },
+  lose:    () => { [330,294,262].forEach((f,i) => setTimeout(() => playTone(f,'sawtooth',0.3,0.18), i*120)); }
+};
+
+/* ═══════════════════
+   STATS
+   ═══════════════════ */
+function loadStats() {
+  try { return JSON.parse(localStorage.getItem('wc_stats')) || { played:0, won:0, streak:0, best:0, lastDay:-1 }; }
+  catch(e) { return { played:0, won:0, streak:0, best:0, lastDay:-1 }; }
+}
+
+function saveStats(s) {
+  try { localStorage.setItem('wc_stats', JSON.stringify(s)); } catch(e) {}
+}
+
+function renderStats() {
+  const s = loadStats();
+  document.getElementById('s-played').textContent = s.played;
+  document.getElementById('s-win').textContent = s.played ? Math.round(s.won / s.played * 100) : 0;
+  document.getElementById('s-streak').textContent = s.streak;
+  document.getElementById('s-best').textContent = s.best;
+}
+
+renderStats();
+
+/* ═══════════════════
+   BOARD BUILDER
+   ═══════════════════ */
+const board = document.getElementById('board');
+const rows = [];
+const tiles = [];
+
+for (let r = 0; r < 6; r++) {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.setAttribute('role', 'row');
+  const rowTiles = [];
+  for (let c = 0; c < 5; c++) {
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.setAttribute('role', 'gridcell');
+    tile.setAttribute('aria-label', 'empty');
+    row.appendChild(tile);
+    rowTiles.push(tile);
+  }
+  board.appendChild(row);
+  rows.push(row);
+  tiles.push(rowTiles);
+}
+
+/* ═══════════════════
+   GAME STATE
+   ═══════════════════ */
+let currentRow = 0;
+let currentCol = 0;
+let currentGuess = [];
+let gameOver = false;
+const keyStates = {};
+
+// Restore saved game state for today
+function loadGameState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('wc_game'));
+    if (saved && saved.day === DAY_INDEX) return saved;
+  } catch(e) {}
+  return null;
+}
+
+function saveGameState() {
+  const guesses = [];
+  for (let r = 0; r < currentRow; r++) {
+    guesses.push(tiles[r].map(t => ({ letter: t.textContent, state: t.dataset.state || '' })));
+  }
+  try {
+    localStorage.setItem('wc_game', JSON.stringify({ day: DAY_INDEX, guesses, gameOver, currentRow }));
+  } catch(e) {}
+}
+
+/* ═══════════════════
+   TOAST
+   ═══════════════════ */
+let toastTimer = null;
+function showToast(msg, duration = 1800) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), duration);
+}
+
+/* ═══════════════════
+   TILE REVEAL
+   ═══════════════════ */
+function revealRow(rowIdx, guess, callback) {
+  const target = TARGET.split('');
+  const result = Array(5).fill('absent');
+  const used = Array(5).fill(false);
+  const guessArr = guess.split('');
+
+  // Pass 1: correct
+  guessArr.forEach((ch, i) => {
+    if (ch === target[i]) { result[i] = 'correct'; used[i] = true; }
+  });
+  // Pass 2: present
+  guessArr.forEach((ch, i) => {
+    if (result[i] === 'correct') return;
+    const j = target.findIndex((t, k) => !used[k] && t === ch);
+    if (j !== -1) { result[i] = 'present'; used[j] = true; }
+  });
+
+  const DELAY = 300;
+  result.forEach((state, i) => {
+    const tile = tiles[rowIdx][i];
+    setTimeout(() => {
+      tile.classList.add('flip-in');
+      setTimeout(() => {
+        tile.classList.remove('flip-in');
+        tile.dataset.state = state;
+        tile.classList.add(state, 'flip-out');
+        tile.setAttribute('aria-label', `${guessArr[i]} - ${state}`);
+        // sound per tile
+        if (state === 'correct') SFX.correct();
+        else if (state === 'present') SFX.present();
+        else SFX.absent();
+        setTimeout(() => tile.classList.remove('flip-out'), 250);
+        // update key colour
+        const key = document.querySelector(`.key[data-key="${guessArr[i]}"]`);
+        if (key) {
+          const priority = { correct:3, present:2, absent:1 };
+          const cur = keyStates[guessArr[i]] || 0;
+          if ((priority[state] || 0) > cur) {
+            keyStates[guessArr[i]] = priority[state];
+            key.classList.remove('correct','present','absent');
+            key.classList.add(state);
+          }
+        }
+      }, 125);
+    }, i * DELAY);
+  });
+
+  setTimeout(() => callback && callback(result), 5 * DELAY + 400);
+  return result;
+}
+
+/* ═══════════════════
+   WIN / LOSE
+   ═══════════════════ */
+const CONGRATS = ['Genius! 🧠','Magnificent! ✨','Impressive! 🎯','Splendid! 🏆','Great! 👏','Phew! 😅'];
+
+function triggerWin(row) {
+  gameOver = true;
+  setTimeout(() => {
+    // bounce tiles
+    tiles[row].forEach((t, i) => setTimeout(() => t.classList.add('bounce'), i * 80));
+    SFX.win();
+    launchConfetti();
+    showToast(CONGRATS[row] || 'You got it!', 2500);
+    // stats
+    const s = loadStats();
+    s.played++;
+    s.won++;
+    if (s.lastDay === DAY_INDEX - 1) s.streak++;
+    else s.streak = 1;
+    if (s.streak > s.best) s.best = s.streak;
+    s.lastDay = DAY_INDEX;
+    saveStats(s);
+    renderStats();
+    setTimeout(showStatusPanel, 1600);
+  }, 5 * 300 + 400);
+}
+
+function triggerLose() {
+  gameOver = true;
+  SFX.lose();
+  const s = loadStats();
+  s.played++;
+  if (s.lastDay !== DAY_INDEX) s.streak = 0;
+  s.lastDay = DAY_INDEX;
+  saveStats(s);
+  renderStats();
+  setTimeout(() => {
+    showToast(`The word was ${TARGET}`, 3500);
+    setTimeout(showStatusPanel, 800);
+  }, 5 * 300 + 500);
+}
+
+/* ═══════════════════
+   STATUS PANEL
+   ═══════════════════ */
+function showStatusPanel() {
+  const won = tiles.some((row, r) =>
+    r < currentRow && row.every(t => t.dataset.state === 'correct')
+  );
+  document.getElementById('status-emoji').textContent = won ? '🎉' : '😔';
+  document.getElementById('status-word').textContent = TARGET;
+  document.getElementById('status-panel').classList.add('show');
+  startTimer();
+}
+
+function startTimer() {
+  function update() {
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setDate(midnight.getDate() + 1);
+    midnight.setHours(0, 0, 0, 0);
+    const diff = midnight - now;
+    const h = String(Math.floor(diff / 3600000)).padStart(2, '0');
+    const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
+    const s = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
+    document.getElementById('next-timer').textContent = `${h}:${m}:${s}`;
+  }
+  update();
+  setInterval(update, 1000);
+}
+
+/* ═══════════════════
+   SHARE
+   ═══════════════════ */
+document.getElementById('btn-share').addEventListener('click', () => {
+  const map = { correct:'🟩', present:'🟨', absent:'⬛' };
+  const lines = [];
+  for (let r = 0; r < currentRow; r++) {
+    lines.push(tiles[r].map(t => map[t.dataset.state] || '⬜').join(''));
+  }
+  const won = tiles.some((row, r) => r < currentRow && row.every(t => t.dataset.state === 'correct'));
+  const text = `Wordcraft #${DAY_INDEX + 1} ${won ? currentRow : 'X'}/6\n\n${lines.join('\n')}\n\nwordcraft.game`;
+  if (navigator.share) {
+    navigator.share({ text }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard! 📋'));
+  }
+});
+
+/* ═══════════════════
+   CONFETTI
+   ═══════════════════ */
+function launchConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const COLORS = ['#f0a500','#527a4f','#c87941','#e8ddd0','#6aab66','#fdb726'];
+  const particles = Array.from({ length: 120 }, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * -200,
+    w: Math.random() * 8 + 5,
+    h: Math.random() * 4 + 3,
+    color: COLORS[Math.floor(Math.random() * COLORS.length)],
+    vx: (Math.random() - 0.5) * 3,
+    vy: Math.random() * 4 + 2,
+    rot: Math.random() * 360,
+    rv: (Math.random() - 0.5) * 8
+  }));
+
+  let frame = 0;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot * Math.PI / 180);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = Math.max(0, 1 - frame / 160);
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+      p.x += p.vx; p.y += p.vy; p.rot += p.rv;
+    });
+    frame++;
+    if (frame < 180) requestAnimationFrame(draw);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  draw();
+}
+
+/* ═══════════════════
+   INPUT HANDLERS
+   ═══════════════════ */
+function addLetter(ch) {
+  if (gameOver || currentCol >= 5) return;
+  const tile = tiles[currentRow][currentCol];
+  tile.textContent = ch;
+  tile.setAttribute('aria-label', ch);
+  tile.classList.add('filled');
+  void tile.offsetWidth;
+  tile.classList.remove('pop');
+  void tile.offsetWidth;
+  tile.classList.add('pop');
+  currentGuess.push(ch);
+  currentCol++;
+  SFX.type();
+}
+
+function deleteLetter() {
+  if (gameOver || currentCol <= 0) return;
+  currentCol--;
+  currentGuess.pop();
+  const tile = tiles[currentRow][currentCol];
+  tile.textContent = '';
+  tile.setAttribute('aria-label', 'empty');
+  tile.classList.remove('filled');
+  SFX.delete();
+}
+
+function submitGuess() {
+  if (gameOver || currentCol < 5) {
+    if (currentCol < 5) {
+      rows[currentRow].classList.add('shake');
+      SFX.invalid();
+      showToast('Not enough letters');
+      setTimeout(() => rows[currentRow].classList.remove('shake'), 500);
+    }
+    return;
+  }
+
+  const guess = currentGuess.join('');
+  if (!ALL_VALID.has(guess)) {
+    rows[currentRow].classList.add('shake');
+    SFX.invalid();
+    showToast('Not in word list');
+    setTimeout(() => rows[currentRow].classList.remove('shake'), 500);
+    return;
+  }
+
+  const rowIdx = currentRow;
+  currentRow++;
+  currentCol = 0;
+  currentGuess = [];
+
+  revealRow(rowIdx, guess, (result) => {
+    saveGameState();
+    if (result.every(s => s === 'correct')) {
+      triggerWin(rowIdx);
+    } else if (currentRow >= 6) {
+      triggerLose();
+    }
+  });
+}
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/^[A-Za-z]$/.test(e.key)) addLetter(e.key.toUpperCase());
+  else if (e.key === 'Backspace') deleteLetter();
+  else if (e.key === 'Enter') submitGuess();
+});
+
+// On-screen keyboard
+document.getElementById('keyboard').addEventListener('click', e => {
+  const key = e.target.closest('.key');
+  if (!key) return;
+  const k = key.dataset.key;
+  if (k === 'ENTER') submitGuess();
+  else if (k === 'BACKSPACE') deleteLetter();
+  else addLetter(k);
+});
+
+/* ═══════════════════
+   RESTORE SAVED GAME
+   ═══════════════════ */
+(function restoreGame() {
+  const saved = loadGameState();
+  if (!saved) return;
+
+  saved.guesses.forEach((rowData, r) => {
+    rowData.forEach((cell, c) => {
+      const tile = tiles[r][c];
+      tile.textContent = cell.letter;
+      tile.setAttribute('aria-label', `${cell.letter} - ${cell.state}`);
+      tile.classList.add('filled');
+      if (cell.state) {
+        tile.dataset.state = cell.state;
+        tile.classList.add(cell.state);
+        const key = document.querySelector(`.key[data-key="${cell.letter}"]`);
+        if (key) {
+          const priority = { correct:3, present:2, absent:1 };
+          if ((priority[cell.state] || 0) > (keyStates[cell.letter] || 0)) {
+            keyStates[cell.letter] = priority[cell.state];
+            key.classList.remove('correct','present','absent');
+            key.classList.add(cell.state);
+          }
+        }
+      }
+    });
+    currentRow = r + 1;
+  });
+  currentCol = 0;
+  currentGuess = [];
+
+  if (saved.gameOver) {
+    gameOver = true;
+    showStatusPanel();
+  }
+})();
+</script>
+{% endblock %}
