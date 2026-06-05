@@ -1,13 +1,14 @@
-# Wordcraft - Built with FastAPI + Jinja2 + SQLite
+# wordcraft - Built with FastAPI + Jinja2 + SQLite
 
-A web application for Wordcraft built with FastAPI, Jinja2 and SQLite.
+A web application for wordcraft built with FastAPI, Jinja2 and SQLite.
 
 ## Live Demo
 
-- Demo: [Wordcraft](https://gamenewspaper.com/)
+- Demo: [wordcraft](https://gamenewspaper.com/)
 - Source: [GitHub](https://github.com/cq1824538531/wordcraft)
 
-
+![ScreenShot_2026-06-06_020959_388.png](screenshots/ScreenShot_2026-06-06_020959_388.png)
+![ScreenShot_2026-06-06_021017_133.png](screenshots/ScreenShot_2026-06-06_021017_133.png)
 
 ## Tech Stack
 
